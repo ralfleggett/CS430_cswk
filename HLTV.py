@@ -1,12 +1,9 @@
 import re
 import requests
-import socket
 import time
 
 from bs4 import BeautifulSoup
-from collections import OrderedDict
 from datetime import datetime
-from requests import Session
 
 class HLTV():
 
@@ -15,24 +12,10 @@ class HLTV():
         self.timeout = timeout
         self.last_request = None
 
-        # answers = socket.getaddrinfo(base_url, 443)
-        # (family, type, proto, canonname, (address, port)) = answers[0]
-        # self.address = address
-        # print(self.address)
-
     def _soup_from_url(self, url):
         """
         Returns soup object for the given url
         """
-        # s = Session()
-        # headers = OrderedDict({
-        #     'Accept-Encoding': 'gzip, deflate, br',
-        #     'Host': 'www.hltv.org',
-        #     'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36'
-        # })
-        # s.headers = headers
-        # response = s.get(f"https://{self.address}{url}", headers=headers, verify=False).text
-
         # Apply timeout if needed
         if self.last_request is not None:
             time_diff = time.time() - self.last_request

@@ -2,6 +2,7 @@ import collections
 import json
 
 from datetime import date
+from re import match
 from tqdm import tqdm
 
 from HLTV import HLTV
@@ -74,12 +75,18 @@ def main():
     # team_dict = get_major_teams(hltv)
     # player_dict = get_major_players(hltv, team_dict)
     # map_ids = get_map_ids(hltv, team_dict, latest_date=MAJOR_END_DATE, min_players=4)
+    # matches_dict, map_pick_dict, events_dict = hltv.get_match_ids(maps_dict, team_dict)
     # write_dict(team_dict, "teams.json")
     # write_dict(player_dict, "players.json")
     # write_dict(map_ids, "maps_4_players.json")
+    # write_dict(matches_dict, "matches.json")
+    # write_dict(map_pick_dict, "map_picks.json")
+    # write_dict(events_dict, "events.json")
 
     team_dict = read_json("teams.json")
     player_dict = read_json("players.json")
+    maps_dict = read_json("maps.json")
+
 
   
 if __name__ == "__main__":

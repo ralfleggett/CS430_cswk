@@ -2,12 +2,13 @@ import re
 import requests
 import time
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 from datetime import datetime
+from tqdm import tqdm
 
 class HLTV():
 
-    def __init__(self, base_url, timeout=3):
+    def __init__(self, base_url, timeout=0.25):
         self.base_url = "https://" + base_url
         self.timeout = timeout
         self.last_request = None
@@ -22,6 +23,7 @@ class HLTV():
             if time_diff < self.timeout:
                 time.sleep(self.timeout - time_diff)
 
+        url.replace(" ", "-")   # Replace whitespace with dash
         response = requests.get(url)
         self.last_request = time.time()
 
@@ -77,7 +79,7 @@ class HLTV():
             min_players:    int. How many of the player_ids to require to 
                             include the map
         Returns:
-            dictionary {(map_id: [team_id, opponent_id]
+            dictionary {(map_id: [team_id, opponent_id])}
         """
         url = f"{self.base_url}/stats/lineup/matches?minLineupMatch={min_players}"
         for id in player_ids:
@@ -109,3 +111,141 @@ class HLTV():
 
         return map_ids
 
+    def get_match_ids(self, map_ids, team_dict, use_tqdm=True):
+        """
+        Params:
+            map_ids:   dictionary of {(map_id: {})} to fetch matches for
+            team_dict: dictionary of {(team_id: {name, players})}
+            use_tqdm:  boolean: whether to use tqdm or not
+        Returns:
+            dictionary 
+            {
+                (match_id: {
+                    team1_id:        int
+                    team2_id:        int
+                    format:          {bo1, bo3, bo5}
+                    LAN:             boolean
+                    team1_map_score: int
+                    team2_map_score: int
+                    map_ids:         [map_id]
+                })
+            }
+            dictionary 
+            {(map_id: team_id of team that picked map, or None if decider)}
+            dictionary 
+            {
+                (event_id: {
+                    event_name,
+                    event_matches
+                })
+            }
+        """
+        match_ids = {}
+        map_picks = {}
+        event_ids = {}
+
+        items = tqdm(map_ids.items()) if use_tqdm else map_ids.items()
+        for map_id, (team1_id, team2_id) in items:
+            team1_name = team_dict[team1_id]['name']
+            team2_name = team_dict[team2_id]['name']
+
+            while True:
+                try:
+                    # Get map url
+                    map_url = (
+                        f"{self.base_url}/stats/matches/mapstatsid/{map_id}/"
+                        f"{team1_name}-vs-{team2_name}"
+                    )
+                    map_soup = self._soup_from_url(map_url)
+
+                    match_html = map_soup.find("div", {"class": "colCon"})
+                    match_html = match_html.find("div", {"class": "match-info-box-con"})
+                    match_html = match_html.find("a", {"class": "match-page-link"})
+                    match_id = re.split("/", match_html["href"])[2]
+
+                    if match_id not in match_ids:
+                        print(map_id, match_id, map_url)
+                        match_dict, map_dict, event_id, event_name = self._get_match_info(match_id, team1_name, team2_name)
+                        match_ids.update(match_dict)
+                        map_picks.update(map_dict)
+                        if event_id not in event_ids:
+                            event_ids[event_id] = {
+                                "event_name": event_name,
+                                "match_ids":  [match_id]
+                            }
+                        else:
+                            event_ids[event_id]["match_ids"].append(match_id)
+
+                    break
+                except AttributeError:
+                    print("Rate limited, waiting...")
+                    time.sleep(120)
+                    print("Retrying...")
+
+        return match_ids, map_picks, event_ids
+
+    def _get_match_info(self, match_id, team1_name, team2_name):
+        """
+        Retrieves dictionary of match info
+        """
+        # Get match url
+        match_url = (
+            f"{self.base_url}/matches/{match_id}/"
+            f"{team1_name}-vs-{team2_name}"
+        )
+        match_soup = self._soup_from_url(match_url)
+
+        # Gather the info required
+        match_html = match_soup.find("div", {"class": "match-page"})
+        team1_div = match_html.div.div
+        team1_id = re.split("/", team1_div.div.a["href"])[2]
+        team1_score = team1_div.div.a.next_sibling.next_sibling.string
+        event_div = team1_div.next_sibling.next_sibling
+        event_a = event_div.find("div", {"class": "event"}).a
+        event_id = re.split("/", event_a["href"])[2]
+        event_name = event_a.string
+        team2_div = event_div.next_sibling.next_sibling
+        team2_id = re.split("/", team2_div.div.a["href"])[2]
+        team2_score = team2_div.div.a.next_sibling.next_sibling.string
+
+        format_div = match_html.find("div", {"class": "maps"}).div.div
+        format_series = format_div.div.string.split()[2]
+        format_lan = "Online" not in format_div.div.string
+
+        map_id_list = []
+        map_pick_dict = {}
+        map_div = format_div.parent.find("div", {"class": "flexbox-column"})
+        for map in map_div.contents:
+            if isinstance(map, NavigableString):
+                continue
+            if "optional" in map.div["class"]:
+                continue
+            # Check if default map (i.e. one team has a map advantage)
+            if map.div.div.div.string == "Default":
+                continue
+
+            results_div = map.div.next_sibling.next_sibling
+            map_stat_link = results_div.div.next_sibling.next_sibling.div.a
+            map_id = re.split("/", map_stat_link["href"])[4]
+            map_id_list.append(map_id)
+
+            if "pick" in results_div.div["class"]:
+                map_pick_dict[map_id] = team1_id
+            elif "pick" in results_div.div.next_sibling.next_sibling.next_sibling.next_sibling["class"]:
+                map_pick_dict[map_id] = team2_id
+            else:
+                map_pick_dict[map_id] = None
+
+        match_dict = {
+            match_id: {
+                "team1_id":    team1_id,
+                "team2_id":    team2_id,
+                "format":      f"Bo{format_series}",
+                "LAN":         format_lan,
+                "team1_score": team1_score,
+                "team2_score": team2_score,
+                "map_ids":     map_id_list
+            }
+        }
+
+        return match_dict, map_pick_dict, event_id, event_name

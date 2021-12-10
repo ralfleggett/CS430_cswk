@@ -120,23 +120,6 @@ def main():
     # print(f"{len(invalid_map_ids)} invalid maps found")
     # matches_dict, events_dict = remove_invalid_maps(invalid_map_ids, matches_dict, events_dict)
 
-    matches_to_delete = []
-    for match in matches_dict:
-        for map in matches_dict[match]["map_ids"]:
-            if map not in maps_dict:
-                matches_dict[match]["map_ids"] = [x for x in matches_dict[match]["map_ids"] if x in maps_dict]
-                if len(matches_dict[match]["map_ids"]) == 0:
-                    matches_to_delete.append(match)
-                break
-    print(len(matches_to_delete))
-    for match in matches_to_delete:
-        # match contains no maps
-        del matches_dict[match]
-
-    for match in matches_dict:
-        for map in matches_dict[match]["map_ids"]:
-            assert map in maps_dict
-
     # write_dict(team_dict, "teams.json")
     # write_dict(player_dict, "players.json")
     # write_dict(map_ids, "map_ids.json")
@@ -144,8 +127,6 @@ def main():
     # write_dict(map_pick_dict, "map_picks.json")
     # write_dict(events_dict, "events.json")
     # write_dict(map_info_dict, "map_info.json")
-    # write_dict(matches_dict, "matches.json")
-    # write_dict(events_dict, "events.json")
   
 if __name__ == "__main__":
     main()

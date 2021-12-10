@@ -106,15 +106,36 @@ def main():
 
     team_dict = read_json("teams.json")
     player_dict = read_json("players.json")
-    map_ids = read_json("map_ids.json")
-    matches_dict = read_json("matches.json")
-    map_picks_dict = read_json("map_picks.json")
     events_dict = read_json("events.json")
+    matches_dict = read_json("matches.json")
+    maps_dict = read_json("map_info.json")
+    # map_picks_dict = read_json("map_picks.json")
+    # map_ids = read_json("map_ids.json")
 
     # team_dict = get_major_teams(hltv)
     # player_dict = get_major_players(hltv, team_dict)
     # map_ids = get_map_ids(hltv, team_dict, latest_date=MAJOR_END_DATE, min_players=4)
     # matches_dict, map_pick_dict, events_dict = hltv.get_match_ids(maps_dict, team_dict)
+    # map_info_dict, invalid_map_ids = hltv.get_map_info(team_dict, matches_dict, map_picks_dict)
+    # print(f"{len(invalid_map_ids)} invalid maps found")
+    # matches_dict, events_dict = remove_invalid_maps(invalid_map_ids, matches_dict, events_dict)
+
+    matches_to_delete = []
+    for match in matches_dict:
+        for map in matches_dict[match]["map_ids"]:
+            if map not in maps_dict:
+                matches_dict[match]["map_ids"] = [x for x in matches_dict[match]["map_ids"] if x in maps_dict]
+                if len(matches_dict[match]["map_ids"]) == 0:
+                    matches_to_delete.append(match)
+                break
+    print(len(matches_to_delete))
+    for match in matches_to_delete:
+        # match contains no maps
+        del matches_dict[match]
+
+    for match in matches_dict:
+        for map in matches_dict[match]["map_ids"]:
+            assert map in maps_dict
 
     # write_dict(team_dict, "teams.json")
     # write_dict(player_dict, "players.json")
@@ -122,13 +143,9 @@ def main():
     # write_dict(matches_dict, "matches.json")
     # write_dict(map_pick_dict, "map_picks.json")
     # write_dict(events_dict, "events.json")
-
-    map_info_dict, invalid_map_ids = hltv.get_map_info(team_dict, matches_dict, map_picks_dict)
-    print(f"{len(invalid_map_ids)} invalid maps found")
-    matches_dict, events_dict = remove_invalid_maps(invalid_map_ids, matches_dict, events_dict)
-    write_dict(map_info_dict, "map_info.json")
-    write_dict(matches_dict, "matches.json")
-    write_dict(events_dict, "events.json")
+    # write_dict(map_info_dict, "map_info.json")
+    # write_dict(matches_dict, "matches.json")
+    # write_dict(events_dict, "events.json")
   
 if __name__ == "__main__":
     main()

@@ -285,6 +285,7 @@ class HLTV():
             dictionary
             {
                 (map_id: {
+                    date:              string (datetime)
                     map_name:          string
                     team1_id:          int
                     team2_id:          int
@@ -348,6 +349,7 @@ class HLTV():
 
                 summary_html = soup.find("div", {"class": "wide-grid"}).div.div
 
+                map_date = summary_html.div.div.span.string
                 map_name = re.sub(r"[\n\t\s]*", "", summary_html.div.div.next_sibling)
 
                 # Check team ids are in same order as on match page
@@ -407,12 +409,15 @@ class HLTV():
                 )
                 econ_soup = self._soup_from_url(econ_url)
                 econ_soup = econ_soup.find_all("table", {"class": "equipment-categories"})
-                first_half_econ = econ_soup[0].find_all("tr")
-                team1_econ = first_half_econ[0].find_all("td", {"class": "equipment-category-td"})
-                team2_econ = first_half_econ[1].find_all("td", {"class": "equipment-category-td"})
-                second_half_econ = econ_soup[1].find_all("tr")
-                team1_econ.extend(second_half_econ[0].find_all("td", {"class": "equipment-category-td"}))
-                team2_econ.extend(second_half_econ[1].find_all("td", {"class": "equipment-category-td"}))
+                econ_exists = False
+                if len(econ_soup) == 2:
+                    first_half_econ = econ_soup[0].find_all("tr")
+                    team1_econ = first_half_econ[0].find_all("td", {"class": "equipment-category-td"})
+                    team2_econ = first_half_econ[1].find_all("td", {"class": "equipment-category-td"})
+                    second_half_econ = econ_soup[1].find_all("tr")
+                    team1_econ.extend(second_half_econ[0].find_all("td", {"class": "equipment-category-td"}))
+                    team2_econ.extend(second_half_econ[1].find_all("td", {"class": "equipment-category-td"}))
+                    econ_exists = True
 
                 rounds = []
                 rounds_html = soup.find("div", {"class": "round-history-con"})
@@ -431,19 +436,26 @@ class HLTV():
                     else:
                         # Game finished, rest or scoreboard is empty
                         break
-                    t1_econ_type, t1_econ = get_econ(econ1)
-                    t2_econ_type, t2_econ = get_econ(econ2)
-                    rounds.append({
-                        "round_winner": win_team, 
-                        "round_type": win_type,
-                        "team1_buy": t1_econ,
-                        "team2_buy": t2_econ,
-                        "team1_buy_type": t1_econ_type,
-                        "team2_buy_type": t2_econ_type
-                    })
+                    if econ_exists:
+                        t1_econ_type, t1_econ = get_econ(econ1)
+                        t2_econ_type, t2_econ = get_econ(econ2)
+                        rounds.append({
+                            "round_winner": win_team, 
+                            "round_type": win_type,
+                            "team1_buy": t1_econ,
+                            "team2_buy": t2_econ,
+                            "team1_buy_type": t1_econ_type,
+                            "team2_buy_type": t2_econ_type
+                        })
+                    else:
+                        rounds.append({
+                            "round_winner": win_team, 
+                            "round_type": win_type
+                        })
 
                 # Add to dict
                 map_info_dict[map_id] = {
+                    "date":              map_date,
                     "map_name":          map_name,
                     "team1_id":          map_team_1_id,
                     "team2_id":          map_team_2_id,

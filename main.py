@@ -127,6 +127,7 @@ def main():
     print(f"{len(invalid_map_ids)} invalid maps found")
     matches_dict, events_dict = remove_invalid_maps(invalid_map_ids, matches_dict, events_dict)
     write_dict(map_info_dict, "map_info.json")
+    write_dict(matches_dict, "matches.json")
     write_dict(events_dict, "events.json")
   
 if __name__ == "__main__":

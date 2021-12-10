@@ -24,10 +24,21 @@ class HLTV():
                 time.sleep(self.timeout - time_diff)
 
         url.replace(" ", "-")   # Replace whitespace with dash
-        response = requests.get(url)
-        self.last_request = time.time()
 
-        return BeautifulSoup(response.text, "html.parser")
+        # If we get rate limited, wait 2mins then retry
+        while True:
+            response = requests.get(url)
+            self.last_request = time.time()
+
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            if "Access denied" in soup.find("title").string:
+                print("Rate limited, waiting 2 minutes...")
+                time.sleep(120)
+            else:
+                break
+
+        return soup
 
     def get_event_teams(self, event_id, event_name):
         """
@@ -111,7 +122,7 @@ class HLTV():
 
         return map_ids
 
-    def get_match_ids(self, map_ids, team_dict, use_tqdm=True):
+    def get_match_info(self, map_ids, team_dict, use_tqdm=True):
         """
         Params:
             map_ids:   dictionary of {(map_id: {})} to fetch matches for
@@ -125,8 +136,7 @@ class HLTV():
                     team2_id:        int
                     format:          {bo1, bo3, bo5}
                     LAN:             boolean
-                    team1_map_score: int
-                    team2_map_score: int
+                    score:           (int, int)
                     map_ids:         [map_id]
                 })
             }
@@ -144,43 +154,47 @@ class HLTV():
         map_picks = {}
         event_ids = {}
 
+        # Dictionary of map ids that we have already found the matches for
+        # Faster than checking map webpage
+        encountered_map_ids = {}
+
         items = tqdm(map_ids.items()) if use_tqdm else map_ids.items()
         for map_id, (team1_id, team2_id) in items:
             team1_name = team_dict[team1_id]['name']
             team2_name = team_dict[team2_id]['name']
 
-            while True:
-                try:
-                    # Get map url
-                    map_url = (
-                        f"{self.base_url}/stats/matches/mapstatsid/{map_id}/"
-                        f"{team1_name}-vs-{team2_name}"
-                    )
-                    map_soup = self._soup_from_url(map_url)
+            if map_id not in encountered_map_ids:
 
-                    match_html = map_soup.find("div", {"class": "colCon"})
-                    match_html = match_html.find("div", {"class": "match-info-box-con"})
-                    match_html = match_html.find("a", {"class": "match-page-link"})
-                    match_id = re.split("/", match_html["href"])[2]
+                # Get map url
+                map_url = (
+                    f"{self.base_url}/stats/matches/mapstatsid/{map_id}/"
+                    f"{team1_name}-vs-{team2_name}"
+                )
+                map_soup = self._soup_from_url(map_url)
 
-                    if match_id not in match_ids:
-                        print(map_id, match_id, map_url)
-                        match_dict, map_dict, event_id, event_name = self._get_match_info(match_id, team1_name, team2_name)
-                        match_ids.update(match_dict)
-                        map_picks.update(map_dict)
-                        if event_id not in event_ids:
-                            event_ids[event_id] = {
-                                "event_name": event_name,
-                                "match_ids":  [match_id]
-                            }
-                        else:
-                            event_ids[event_id]["match_ids"].append(match_id)
+                # Find match id
+                match_html = map_soup.find("div", {"class": "colCon"})
+                match_html = match_html.find("div", {"class": "match-info-box-con"})
+                match_html = match_html.find("a", {"class": "match-page-link"})
+                match_id = re.split("/", match_html["href"])[2]
 
-                    break
-                except AttributeError:
-                    print("Rate limited, waiting...")
-                    time.sleep(120)
-                    print("Retrying...")
+                # Get info for match
+                match_dict, map_dict, event_id, event_name = self._get_match_info(match_id, team1_name, team2_name)
+                match_ids.update(match_dict)
+                map_picks.update(map_dict)
+
+                # Add to events dict
+                if event_id not in event_ids:
+                    event_ids[event_id] = {
+                        "event_name": event_name,
+                        "match_ids":  [match_id]
+                    }
+                else:
+                    event_ids[event_id]["match_ids"].append(match_id)
+
+                # Update encountered_map_ids
+                for id in match_dict[match_id]["map_ids"]:
+                    encountered_map_ids[id] = None
 
         return match_ids, map_picks, event_ids
 
@@ -212,6 +226,16 @@ class HLTV():
         format_series = format_div.div.string.split()[2]
         format_lan = "Online" not in format_div.div.string
 
+        # Fix score if Bo1. Note this doesn't work with tie games, but none 
+        # in the dataset
+        if format_series == "1":
+            if int(team1_score) > int(team2_score):
+                team1_score = "1"
+                team2_score = "0"
+            else:
+                team1_score = "0"
+                team2_score = "1"
+
         map_id_list = []
         map_pick_dict = {}
         map_div = format_div.parent.find("div", {"class": "flexbox-column"})
@@ -242,8 +266,7 @@ class HLTV():
                 "team2_id":    team2_id,
                 "format":      f"Bo{format_series}",
                 "LAN":         format_lan,
-                "team1_score": team1_score,
-                "team2_score": team2_score,
+                "score":       (team1_score, team2_score),
                 "map_ids":     map_id_list
             }
         }

@@ -86,6 +86,11 @@ def main():
     team_dict = read_json("teams.json")
     player_dict = read_json("players.json")
     maps_dict = read_json("maps.json")
+    matches_dict = read_json("matches.json")
+    map_picks_dict = read_json("map_picks.json")
+    events_dict = read_json("events.json")
+
+    
 
 
   

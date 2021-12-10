@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 class HLTV():
 
-    def __init__(self, base_url, timeout=0.25):
+    def __init__(self, base_url, timeout=0.5):
         self.base_url = "https://" + base_url
         self.timeout = timeout
         self.last_request = None
@@ -272,3 +272,194 @@ class HLTV():
         }
 
         return match_dict, map_pick_dict, event_id, event_name
+
+    def get_map_info(self, teams_dict, matches_dict, map_picks_dict, 
+        use_tqdm=True):
+        """
+        Params:
+            teams_dict:     dictionary returned from self.get_major_teams()
+            matches_dict:   dictionary returned from self.get_match_info()
+            map_picks_dict: dictionary returned from self.get_match_info()
+            use_tqdm:       boolean. Whether to use tqdm
+        Returns:
+            dictionary
+            {
+                (map_id: {
+                    map_name:          string
+                    team1_id:          int
+                    team2_id:          int
+                    map_picked_by:     int. id of team
+                    ct_start_team:     int. id of team
+                    score:             (int, int). (team1, team2)
+                    first_half_score:  (int, int). (team1, team2)
+                    second_half_score: (int, int). (team1, team2)
+                    overtime_score:    (int, int). (team1, team2)
+                    team_rating:       (int, int). (team1, team2)
+                    first_kills:       (int, int). (team1, team2)
+                    clutches:          (int, int). (team1, team2)
+                    rounds:            [{round_winner, round_type, team1_buy, 
+                                         team2_buy, team1_buy_type, 
+                                         team2_buy_type}] 
+                                       list of dicts for each round
+                    team1_players:     [int]. list of player ids
+                    team2_players:     [int]. list of player ids
+                })
+            }
+            list [invalid_map_ids] list of map_ids that were not mr16 format
+        """
+        def im_src_to_win_type(im_src):
+            if im_src == "t_win.svg" or im_src == "ct_win.svg":
+                return "elimination"
+            elif im_src == "bomb_defused.svg":
+                return "defuse"
+            elif im_src == "bomb_exploded.svg":
+                return "bomb"
+            elif im_src == "stopwatch.svg":
+                return "timeout"
+
+        def get_econ(td):
+            equip_val = td["title"][17:]
+            if int(equip_val) > 20_000:
+                return "full_buy", equip_val
+            elif int(equip_val) > 10_000:
+                return "semi_buy", equip_val
+            elif int(equip_val) > 5_000:
+                return "semi_eco", equip_val
+            else:
+                return "eco", equip_val
+
+        map_info_dict = {}
+        invalid_map_ids = []
+
+        match_keys = tqdm(matches_dict) if use_tqdm else matches_dict
+        for match in match_keys:
+            team1_id = matches_dict[match]["team1_id"]
+            team2_id = matches_dict[match]["team2_id"]
+            team1_name = teams_dict[team1_id]["name"]
+            team2_name = teams_dict[team2_id]["name"]
+
+            for map_id in matches_dict[match]["map_ids"]:
+                # Get map url
+                url = (
+                    f"{self.base_url}/stats/matches/mapstatsid/{map_id}/"
+                    f"{team1_name}-vs-{team2_name}"
+                )
+                soup = self._soup_from_url(url).find("div", {"class": "stats-match"})
+
+                summary_html = soup.find("div", {"class": "wide-grid"}).div.div
+
+                map_name = re.sub(r"[\n\t\s]*", "", summary_html.div.div.next_sibling)
+
+                # Check team ids are in same order as on match page
+                map_team_1_id = summary_html.div.find("div", {"class": "team-left"})
+                map_team_1_id = re.split("/", map_team_1_id.a["href"])[3]
+                map_team_2_id = summary_html.div.find("div", {"class": "team-right"})
+                map_team_2_id = re.split("/", map_team_2_id.a["href"])[3]
+                if map_team_1_id != team1_id:
+                    print(
+                        f"Mismatched team ids: {team1_id} != {map_team_1_id}"
+                        f"{team2_id} != {map_team_2_id}"
+                    )
+
+                info_rows = summary_html.find_all("div", {"class": "match-info-row"})
+
+                # Scores
+                scores_spans = info_rows[0].find("div", {"class": "right"}).find_all("span")
+                team1_score = scores_spans[0].string
+                team2_score = scores_spans[1].string
+                team1_first_half_score = scores_spans[2].string
+                team2_first_half_score = scores_spans[3].string
+                ct_start_team = map_team_1_id if scores_spans[2]["class"] == "ct-color" else map_team_2_id
+                team1_second_half_score = scores_spans[4].string
+                team2_second_half_score = scores_spans[5].string
+                team1_overtime_score = "0"
+                team2_overtime_score = "0"
+                # Check game was mr16 and not something funky
+                if int(team1_score) < 16 and int(team2_score) < 16:
+                    invalid_map_ids.append(map_id)
+                    continue
+                # Check for overtime
+                if int(team1_score) > 16 or int(team2_score) > 16:
+                    overtime_str = re.sub(r"[\n\t\s()]*", "", scores_spans[5].next_sibling)
+                    team1_overtime_score, team2_overtime_score = re.split(":", overtime_str)
+
+                team_ratings = info_rows[1].find("div", {"class": "right"}).string
+                team_ratings = [team_ratings.split()[i] for i in [0, 2]]
+
+                first_kills = info_rows[2].find("div", {"class": "right"}).string
+                first_kills = [first_kills.split()[i] for i in [0, 2]]
+
+                clutches = info_rows[3].find("div", {"class": "right"}).string
+                clutches = [clutches.split()[i] for i in [0, 2]]
+
+                # Players
+                stats_tables = soup.find_all("table", {"class": "stats-table"})
+                team1_players_html = stats_tables[0].find_all("td", {"class": "st-player"})
+                team1_players = [re.split("/", p.a["href"])[3] for p in team1_players_html]
+                team2_players_html = stats_tables[1].find_all("td", {"class": "st-player"})
+                team2_players = [re.split("/", p.a["href"])[3] for p in team2_players_html]
+
+                # Round winner and type
+                # Get url for economy history
+                econ_url = (
+                    f"{self.base_url}/stats/matches/economy/mapstatsid/"
+                    f"{map_id}/{team1_name}-vs-{team2_name}"
+                )
+                econ_soup = self._soup_from_url(econ_url)
+                econ_soup = econ_soup.find_all("table", {"class": "equipment-categories"})
+                first_half_econ = econ_soup[0].find_all("tr")
+                team1_econ = first_half_econ[0].find_all("td", {"class": "equipment-category-td"})
+                team2_econ = first_half_econ[1].find_all("td", {"class": "equipment-category-td"})
+                second_half_econ = econ_soup[1].find_all("tr")
+                team1_econ.extend(second_half_econ[0].find_all("td", {"class": "equipment-category-td"}))
+                team2_econ.extend(second_half_econ[1].find_all("td", {"class": "equipment-category-td"}))
+
+                rounds = []
+                rounds_html = soup.find("div", {"class": "round-history-con"})
+                rounds_html = rounds_html.find_all("div", {"class": "round-history-team-row"})
+                team1_rounds_html = rounds_html[0].find_all("img", {"class": "round-history-outcome"})
+                team2_rounds_html = rounds_html[1].find_all("img", {"class": "round-history-outcome"})
+                for (im1, im2, econ1, econ2) in zip(team1_rounds_html, team2_rounds_html, team1_econ, team2_econ):
+                    im1_type = re.split("/", im1["src"])[4]
+                    im2_type = re.split("/", im2["src"])[4]
+                    if im1_type != "emptyHistory.svg":
+                        win_type = im_src_to_win_type(im1_type)
+                        win_team = map_team_1_id
+                    elif im2_type != "emptyHistory.svg":
+                        win_type = im_src_to_win_type(im2_type)
+                        win_team = map_team_2_id
+                    else:
+                        # Game finished, rest or scoreboard is empty
+                        break
+                    t1_econ_type, t1_econ = get_econ(econ1)
+                    t2_econ_type, t2_econ = get_econ(econ2)
+                    rounds.append({
+                        "round_winner": win_team, 
+                        "round_type": win_type,
+                        "team1_buy": t1_econ,
+                        "team2_buy": t2_econ,
+                        "team1_buy_type": t1_econ_type,
+                        "team2_buy_type": t2_econ_type
+                    })
+
+                # Add to dict
+                map_info_dict[map_id] = {
+                    "map_name":          map_name,
+                    "team1_id":          map_team_1_id,
+                    "team2_id":          map_team_2_id,
+                    "map_picked_by":     map_picks_dict[map_id],
+                    "ct_start_team":     ct_start_team,
+                    "score":             (team1_score, team2_score),
+                    "first_half_score":  (team1_first_half_score, team2_first_half_score),
+                    "second_half_score": (team1_second_half_score, team2_second_half_score),
+                    "overtime_score":    (team1_overtime_score, team2_overtime_score),
+                    "team_rating":       team_ratings,
+                    "first_kills":       first_kills,
+                    "clutches":          clutches,
+                    "rounds":            rounds,
+                    "team1_players":     team1_players,
+                    "team2_players":     team2_players
+                }
+
+        return map_info_dict, invalid_map_ids
+

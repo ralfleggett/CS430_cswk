@@ -1,3 +1,4 @@
+import ast
 import collections
 import json
 
@@ -15,15 +16,16 @@ def write_dict(dict_to_write, filename):
     Writes a dictionary to the filename
     """
     with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(dict_to_write, f, ensure_ascii=False, indent=4)
+        json.dump({str(k): v for k, v in dict_to_write.items()}, f, ensure_ascii=False, indent=4)
+        # json.dump(dict_to_write, f, ensure_ascii=False, indent=4)
 
-def read_json(filename):
+def read_json(filename, is_tuple_key=False):
     """
     Reads a json file into a dictionary
     """
     with open(filename) as handle:
         dictdump = json.loads(handle.read())
-    return dictdump
+    return dictdump if not is_tuple_key else {ast.literal_eval(k): v for k, v in dictdump.items()}
 
 def get_major_teams(hltv):
     """
@@ -38,7 +40,10 @@ def get_major_players(hltv, team_dict):
     players = {}
     for team_id, team_name in tqdm(team_dict.items(), unit="team"):
         player_dict = hltv.get_event_team_players(team_id, team_name, MAJOR_EVENT_ID)
-        team_dict[team_id].update({"players": [id for id in player_dict]})
+        team_dict[team_id].update({
+            "major_roster": [id for id in player_dict],
+            "players": [id for id in player_dict]
+        })
         players.update(player_dict)
     return players
 
@@ -54,7 +59,7 @@ def get_map_ids(hltv, team_dict, latest_date=None, min_players=5):
     map_ids = {}            # IDs that have appeared at least once
     confirmed_map_ids = {}  # IDs which have appeared for both teams
 
-    for team in tqdm(team_dict, unit="team"):
+    for team in tqdm(team_dict, unit="teams"):
         ids = hltv.get_map_ids(
             team_dict[team]["players"], 
             team, 
@@ -106,27 +111,30 @@ def main():
 
     team_dict = read_json("teams.json")
     player_dict = read_json("players.json")
-    events_dict = read_json("events.json")
-    matches_dict = read_json("matches.json")
-    maps_dict = read_json("map_info.json")
-    # map_picks_dict = read_json("map_picks.json")
+    event_dict = read_json("events.json")
+    match_dict = read_json("matches.json")
+    map_dict = read_json("map_info.json")
+    # map_player_dict = read_json("map_player.json", is_tuple_key=True)
+    # map_pick_dict = read_json("map_picks.json")
     # map_ids = read_json("map_ids.json")
 
     # team_dict = get_major_teams(hltv)
     # player_dict = get_major_players(hltv, team_dict)
     # map_ids = get_map_ids(hltv, team_dict, latest_date=MAJOR_END_DATE, min_players=4)
-    # matches_dict, map_pick_dict, events_dict = hltv.get_match_ids(maps_dict, team_dict)
-    # map_info_dict, invalid_map_ids = hltv.get_map_info(team_dict, matches_dict, map_picks_dict)
+    # match_dict, map_pick_dict, events_dict = hltv.get_match_ids(map_dict, team_dict)
+    # map_info_dict, invalid_map_ids = hltv.get_map_info(team_dict, match_dict, map_pick_dict)
     # print(f"{len(invalid_map_ids)} invalid maps found")
-    # matches_dict, events_dict = remove_invalid_maps(invalid_map_ids, matches_dict, events_dict)
+    # match_dict, event_dict = remove_invalid_maps(invalid_map_ids, match_dict, event_dict)
+    map_player_dict, player_dict, team_dict = hltv.get_map_player_info(map_dict, player_dict, team_dict)
 
-    # write_dict(team_dict, "teams.json")
-    # write_dict(player_dict, "players.json")
+    write_dict(team_dict, "teams_new.json")
+    write_dict(player_dict, "players_new.json")
     # write_dict(map_ids, "map_ids.json")
-    # write_dict(matches_dict, "matches.json")
+    # write_dict(match_dict, "matches.json")
     # write_dict(map_pick_dict, "map_picks.json")
-    # write_dict(events_dict, "events.json")
+    # write_dict(event_dict, "events.json")
     # write_dict(map_info_dict, "map_info.json")
+    write_dict(map_player_dict, "map_player.json")
   
 if __name__ == "__main__":
     main()

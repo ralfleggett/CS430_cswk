@@ -332,7 +332,7 @@ class HLTV():
         map_info_dict = {}
         invalid_map_ids = []
 
-        match_keys = tqdm(matches_dict) if use_tqdm else matches_dict
+        match_keys = tqdm(matches_dict, unit="matches") if use_tqdm else matches_dict
         for match in match_keys:
             team1_id = matches_dict[match]["team1_id"]
             team2_id = matches_dict[match]["team2_id"]
@@ -475,3 +475,117 @@ class HLTV():
 
         return map_info_dict, invalid_map_ids
 
+    def get_map_player_info(self, map_dict, player_dict, team_dict, 
+        use_tqdm=True):
+        """
+        Params:
+            map_dict:
+            player_dict:
+            team_dict:
+            use_tqdm:       boolean. Whether to use tqdm
+        Returns:
+            dictionary
+            {
+                ((map_id, player_id): {
+                    kills:          int
+                    headshots:      int
+                    deaths:         int
+                    assists:        int
+                    flash_assists:  int
+                    KAST:           float. Percentage
+                    ADR:            float
+                    first_kills:    int
+                    first_deaths:   int
+                    rating:         float
+                })
+            }
+            player_dict updated with new players
+            teams_dict  updated with new players
+        """
+        def get_overview_stats(tr, map_id, team_id, player_dict, team_dict):
+            # Get info
+            tds = tr.find_all("td")
+            player_id = re.split("/", tds[0].div.a["href"])[3]
+            player_name = tds[0].div.a.string
+            kills = tds[1].get_text().split()[0]
+            headshots = re.sub(r"[()]*", "", tds[1].get_text().split()[1])
+            assists = tds[2].get_text().split()[0]
+            flash_assists = re.sub(r"[()]*", "", tds[2].get_text().split()[1])
+            deaths = tds[3].string
+            kast = tds[4].string[:-1]
+            adr = tds[6].string
+            first_kills = tds[7]["title"].split()[0]
+            first_deaths = tds[7]["title"].split()[3]
+            rating = tds[8].string
+
+            # Check player in player_dict
+            if player_id not in player_dict:
+                print(f"{player_name} ({player_id}) not in team {team_dict[team_id]['name']} ({team_id})")
+                player_dict[player_id] = {"name": player_name}
+                team_dict[team_id]["players"].append(player_id)
+
+            stats_dict = {(map_id, player_id): {
+                "kills": kills,
+                "headshots": headshots,
+                "assists": assists,
+                "flash_assists": flash_assists,
+                "deaths": deaths,
+                "kast": kast,
+                "adr": adr,
+                "first_kills": first_kills,
+                "first_deaths": first_deaths,
+                "rating": rating
+            }}
+
+            return stats_dict, player_dict, team_dict
+
+        player_map_dict = {}
+
+        items = tqdm(map_dict, unit="maps") if use_tqdm else map_dict
+        for map in items:
+            stats_dict = {} # Update smaller dict before adding to main
+
+            team1_id = map_dict[map]["team1_id"]
+            team2_id = map_dict[map]["team2_id"]
+            team1_name = team_dict[team1_id]["name"]
+            team2_name = team_dict[team2_id]["name"]
+
+            # Get the good soup
+            overview_url = (
+                f"{self.base_url}/stats/matches/mapstatsid/{map}/"
+                f"{team1_name}-vs-{team2_name}"
+            )
+            overview_soup = self._soup_from_url(overview_url)
+            overview_soup = overview_soup.find("div", {"class": "stats-match"})
+            ### CAN'T FETCH :(
+            # performance_url = (
+            #     f"{self.base_url}/stats/matches/performance/mapstatsid/{map}/"
+            #     f"{team1_name}-vs-{team2_name}"
+            # )
+            # performance_soup = self._soup_from_url(performance_url)
+
+            # Player stats from overview page
+            stats_html = overview_soup.find_all("table", {"class": "stats-table"})
+            team1_stats_html = stats_html[0].tbody.find_all("tr")
+            team2_stats_html = stats_html[1].tbody.find_all("tr")
+            for tr in team1_stats_html:
+                stats, player_dict, team_dict = get_overview_stats(
+                    tr, map, team1_id, player_dict, team_dict)
+                stats_dict.update(stats)
+            for tr in team2_stats_html:
+                stats, player_dict, team_dict = get_overview_stats(
+                    tr, map, team2_id, player_dict, team_dict)
+                stats_dict.update(stats)
+
+            # Impact stat from performance page
+            # impact_html = performance_soup.find("div", {"class": "player-overview"})
+            # impact_html = impact_html.find_all("div", {"class": "highlighted-player"})
+            # for player in impact_html:
+            #     player_id = re.split("/", player.div.div.span.a["href"])[2]
+            #     impact = player.find("div", {"class": "facts"}).div
+            #     impact = ast.literal_eval(impact["data-fusionchart-config"])
+            #     impact = impact["data"][3]["value"]
+
+            player_map_dict.update(stats_dict)
+
+        return player_map_dict, player_dict, team_dict

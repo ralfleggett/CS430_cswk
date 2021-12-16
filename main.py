@@ -1,5 +1,6 @@
 import ast
 import collections
+import csv
 import json
 
 from datetime import date
@@ -106,6 +107,25 @@ def remove_invalid_maps(map_ids, match_dict, event_dict):
 
     return match_dict, event_dict
 
+def map_player_dict_to_csv(map_player_dict, player_dict):
+    keylist = list(map_player_dict.keys())
+    with open('map_player.csv', 'w', newline='') as csvfile:
+        fieldnames = ['map_id', 'player_id', 'player_name']
+        fieldnames.extend(list(map_player_dict[keylist[0]].keys()))
+
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for (map_id, player_id) in keylist:
+            player_name = player_dict[player_id]["name"]
+            dict_to_write = {
+                "map_id": map_id,
+                "player_id": player_id,
+                "player_name": player_name
+            }
+            dict_to_write.update(map_player_dict[(map_id, player_id)])
+            writer.writerow(dict_to_write)
+
 def main():
     hltv = HLTV("hltv.org")
 
@@ -135,6 +155,8 @@ def main():
     # write_dict(event_dict, "events.json")
     # write_dict(map_info_dict, "map_info.json")
     # write_dict(map_player_dict, "map_player.json")
+
+    map_player_dict_to_csv(map_player_dict, player_dict)
   
 if __name__ == "__main__":
     main()

@@ -1,3 +1,6 @@
 **/__pycache__
 **/*.json
+**/*.arff
+**/*.csv
 other_jsons
+report

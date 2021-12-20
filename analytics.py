@@ -52,9 +52,17 @@ def get_team_freq(team_dict, map_dict):
         freq[map_dict[map]["team1_id"]] += 1
         freq[map_dict[map]["team2_id"]] += 1
 
-    plt.figure(figsize=(12,12))
-    plt.bar([team_dict[t]["name"][:5] for t in freq], freq.values())
-    plt.title("Number of maps in dataset for each team")
+    fig = plt.figure(figsize=(12,12))
+    ax = fig.add_subplot(111)
+    ax.set_ylim([0, 180])
+    bars = ax.bar([team_dict[t]["name"][:5] for t in freq], freq.values())
+    for rect in bars:
+        h = rect.get_height()
+        ax.text(rect.get_x() + rect.get_width() / 2.0, h + 0.2, 
+                f"{h}", ha="center", va="bottom")
+    ax.set_title("Number of maps in dataset for each team")
+    ax.set_ylabel("Number of maps")
+    ax.set_xlabel("Team")
     plt.show()
 
 def get_map_freq(map_dict):
@@ -172,8 +180,8 @@ def get_map_biases(map_dict):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.set_ylim([0, 60])
-    bars1 = ax.bar(xvals, ct_percs, bar_width, color="b")
-    bars2 = ax.bar(xvals + bar_width, t_percs, bar_width, color="r")
+    bars1 = ax.bar(xvals, ct_percs, bar_width, color="#2c6ca2")
+    bars2 = ax.bar(xvals + bar_width, t_percs, bar_width, color="#e0a639")
 
     ax.set_ylabel("Round win %")
     ax.set_xticks(xvals + 0.5 * bar_width)
@@ -189,7 +197,7 @@ def get_map_biases(map_dict):
     def autolabel(rects):
         for rect in rects:
             h = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2.0, 1.05 * h, 
+            ax.text(rect.get_x() + rect.get_width() / 2.0, h + 0.2, 
                     f"{h:.1f}", ha="center", va="bottom")
 
     autolabel(bars1)
@@ -230,7 +238,7 @@ def get_map_dates(map_dict):
     ax = fig.add_subplot(111)
     ax.set_ylim([0, 200])
     xticks = np.arange(len(xvals))
-    bars = ax.bar(xticks, yvals, 0.3, color="b")
+    bars = ax.bar(xticks, yvals)
 
     ax.set_ylabel("Number of maps")
     ax.set_xticks(xticks)
@@ -252,6 +260,7 @@ def maps_without_econ_stats(map_dict):
         if "team1_buy" not in map_dict[map]["rounds"][0]:
             i += 1
             print(map_dict[map]["date"])
+            print(map)
     print(i)
 
 def main():
@@ -262,13 +271,13 @@ def main():
     map_dict = read_json("map.json")
     map_player_dict = read_json("map_player.json", is_tuple_key=True)
 
-    # maps_without_econ_stats(map_dict)
+    maps_without_econ_stats(map_dict)
     # get_matchup_frequencies(team_dict, map_dict)
     # get_team_freq(team_dict, map_dict)
     # get_map_freq(map_dict)
     # get_major_matchup_freq(team_dict, map_dict, match_dict, event_dict)
     # get_map_biases(map_dict)
-    get_map_dates(map_dict)
+    # get_map_dates(map_dict)
 
 if __name__ == "__main__":
     main()

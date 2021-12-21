@@ -1,9 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import re
-
-from datetime import datetime
 
 from main import read_json
 
@@ -19,12 +16,12 @@ def round_prediction_generator(event_dict, match_dict, map_dict, team_dict):
     train_dict = _round_prediction_generator(train_maps, map_dict, team_dict)
     test_dict = _round_prediction_generator(test_maps, map_dict, team_dict)
 
-    columns = ["map", "ct_team_name", "t_team_name", "ct_buy", "t_buy", "round_type", "round_winner"]
+    columns = ["map", "ct_team_name", "t_team_name", "ct_buy", "t_buy", "round_winner"]
     train = pd.DataFrame.from_dict(train_dict, orient="index", columns=columns)
     test = pd.DataFrame.from_dict(test_dict, orient="index", columns=columns)
 
-    train.to_csv("round_prediction_train.csv", index=False)
-    test.to_csv("round_prediction_test.csv", index=False)
+    train.to_csv("round_prediction_no_round_type_train.csv", index=False)
+    test.to_csv("round_prediction_no_round_type_test.csv", index=False)
 
 def _round_prediction_generator(map_ids, map_dict, team_dict):
     output = {}
@@ -50,7 +47,7 @@ def _round_prediction_generator(map_ids, map_dict, team_dict):
             t2_buy = round["team2_buy"]
             row.append(t1_buy if ct_team == t1_id else t2_buy)
             row.append(t2_buy if ct_team == t1_id else t1_buy)
-            row.append(round["round_type"])
+            # row.append(round["round_type"])
             row.append(0 if round["round_winner"] == ct_team else 1)
             output[f"{id}-round-{i}"] = row
     return output
@@ -66,9 +63,9 @@ def main():
     # round_prediction_generator(event_dict, match_dict, map_dict, team_dict)
 
     # Print stuff so we get the .arff nominal attribute specifications right
-    # print(set([map_dict[map]["map_name"] for map in map_dict]))
-    # print([team_dict[team]["name"] for team in team_dict])
-    # print(set([round["round_type"] for map in map_dict for round in map_dict[map]["rounds"]]))
+    print(set([map_dict[map]["map_name"] for map in map_dict]))
+    print([team_dict[team]["name"] for team in team_dict])
+    print(set([round["round_type"] for map in map_dict for round in map_dict[map]["rounds"]]))
 
 if __name__ == "__main__":
     main()

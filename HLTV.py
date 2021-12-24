@@ -371,7 +371,7 @@ class HLTV():
                 team2_score = scores_spans[1].string
                 team1_first_half_score = scores_spans[2].string
                 team2_first_half_score = scores_spans[3].string
-                ct_start_team = map_team_1_id if scores_spans[2]["class"] == "ct-color" else map_team_2_id
+                ct_start_team = map_team_1_id if "ct-color" in scores_spans[2]["class"] else map_team_2_id
                 team1_second_half_score = scores_spans[4].string
                 team2_second_half_score = scores_spans[5].string
                 team1_overtime_score = "0"

@@ -133,16 +133,16 @@ def main():
     player_dict = read_json("player.json")
     event_dict = read_json("event.json")
     match_dict = read_json("match.json")
-    map_dict = read_json("map.json")
+    # map_dict = read_json("map.json")
     map_player_dict = read_json("map_player.json", is_tuple_key=True)
-    # map_pick_dict = read_json("map_picks.json")
+    map_pick_dict = read_json("./other_jsons/map_picks.json")
     # map_ids = read_json("map_ids.json")
 
     # team_dict = get_major_teams(hltv)
     # player_dict = get_major_players(hltv, team_dict)
     # map_ids = get_map_ids(hltv, team_dict, latest_date=MAJOR_END_DATE, min_players=4)
     # match_dict, map_pick_dict, events_dict = hltv.get_match_ids(map_dict, team_dict)
-    # map_info_dict, invalid_map_ids = hltv.get_map_info(team_dict, match_dict, map_pick_dict)
+    map_info_dict, invalid_map_ids = hltv.get_map_info(team_dict, match_dict, map_pick_dict)
     # print(f"{len(invalid_map_ids)} invalid maps found")
     # match_dict, event_dict = remove_invalid_maps(invalid_map_ids, match_dict, event_dict)
     # map_player_dict, player_dict, team_dict = hltv.get_map_player_info(map_dict, player_dict, team_dict)
@@ -153,10 +153,10 @@ def main():
     # write_dict(match_dict, "matches.json")
     # write_dict(map_pick_dict, "map_picks.json")
     # write_dict(event_dict, "events.json")
-    # write_dict(map_info_dict, "map_info.json")
+    write_dict(map_info_dict, "map.json")
     # write_dict(map_player_dict, "map_player.json")
 
-    map_player_dict_to_csv(map_player_dict, player_dict)
+    # map_player_dict_to_csv(map_player_dict, player_dict)
   
 if __name__ == "__main__":
     main()

@@ -65,6 +65,38 @@ def get_team_freq(team_dict, map_dict):
     ax.set_xlabel("Team")
     plt.show()
 
+def get_team_map_freq(event_dict, match_dict, map_dict, team_dict, train_set_only=True):
+    """
+    Barchart for each team displaying frequency of each map.
+    """
+    freq = {}
+    test_maps = [map_id for match_id in event_dict["4866"]["match_ids"] for map_id in match_dict[match_id]["map_ids"]]
+    for team in team_dict:
+        maps = {}
+        for m in ["Inferno", "Overpass", "Vertigo", "Dust2", "Mirage", "Nuke", "Train", "Ancient"]:
+            maps[m] = 0
+        freq[team] = maps
+
+    for map in map_dict:
+        if train_set_only and map in test_maps:
+            continue
+        freq[map_dict[map]["team1_id"]][map_dict[map]["map_name"]] += 1
+        freq[map_dict[map]["team2_id"]][map_dict[map]["map_name"]] += 1
+
+    fig = plt.figure(figsize=(12,12))
+    fig.tight_layout()
+    for i, team in enumerate(freq):
+        ax = fig.add_subplot(4, 4, i+1)
+        plt.subplots_adjust(left=0.02, bottom=0.03, right=0.98, top = 0.97, hspace=.35, wspace = .1)
+        ax.set_ylim([0, (35 if train_set_only else 40)])
+        bars = ax.bar([k[:5] for k in freq[team]], freq[team].values())
+        for rect in bars:
+            h = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2.0, h + 0.2, 
+                    f"{h}", ha="center", va="bottom")
+        ax.set_title(team_dict[team]["name"])
+    plt.show()
+
 def get_map_freq(map_dict):
     """
     Bar chart of number of instances of each map
@@ -271,10 +303,11 @@ def main():
     map_dict = read_json("map.json")
     map_player_dict = read_json("map_player.json", is_tuple_key=True)
 
-    maps_without_econ_stats(map_dict)
+    # maps_without_econ_stats(map_dict)
     # get_matchup_frequencies(team_dict, map_dict)
     # get_team_freq(team_dict, map_dict)
     # get_map_freq(map_dict)
+    get_team_map_freq(event_dict, match_dict, map_dict, team_dict, train_set_only=False)
     # get_major_matchup_freq(team_dict, map_dict, match_dict, event_dict)
     # get_map_biases(map_dict)
     # get_map_dates(map_dict)

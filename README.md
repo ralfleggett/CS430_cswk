@@ -1,6 +1,6 @@
 # HLTV Scraper & Analytics
 
-Coursework for CS430 Data Analytics. Please note that unlike in the report, "map" and "game" are often conflated in the code.
+Coursework for CS430 Data Analytics. Please note that unlike in the report, "map" and "game" are often conflated in the code. This .json files are included, with the "map.json" being the "game" table in the report, and "map_player.json" being the "game_player" table in the report.
 
 Games with min_players = 5: 330
 

@@ -60,7 +60,7 @@ def get_team_freq(team_dict, map_dict):
         h = rect.get_height()
         ax.text(rect.get_x() + rect.get_width() / 2.0, h + 0.2, 
                 f"{h}", ha="center", va="bottom")
-    ax.set_title("Number of maps in dataset for each team")
+    ax.set_title("Number of games in dataset for each team")
     ax.set_ylabel("Number of maps")
     ax.set_xlabel("Team")
     plt.show()
@@ -276,7 +276,7 @@ def get_map_dates(map_dict):
     ax.set_xticks(xticks)
     ax.set_xticklabels(xvals)
     ax.set_xlabel("Date (year and quarter)")
-    ax.set_title("Distribution of maps in dataset by date")
+    ax.set_title("Distribution of games in dataset by date")
 
     for rect in bars:
         h = rect.get_height()
@@ -303,14 +303,15 @@ def main():
     map_dict = read_json("map.json")
     map_player_dict = read_json("map_player.json", is_tuple_key=True)
 
+    plt.rcParams.update({'font.size': 15})
     # maps_without_econ_stats(map_dict)
     # get_matchup_frequencies(team_dict, map_dict)
-    # get_team_freq(team_dict, map_dict)
+    get_team_freq(team_dict, map_dict)
     # get_map_freq(map_dict)
-    get_team_map_freq(event_dict, match_dict, map_dict, team_dict, train_set_only=False)
+    # get_team_map_freq(event_dict, match_dict, map_dict, team_dict, train_set_only=False)
     # get_major_matchup_freq(team_dict, map_dict, match_dict, event_dict)
     # get_map_biases(map_dict)
-    # get_map_dates(map_dict)
+    get_map_dates(map_dict)
 
 if __name__ == "__main__":
     main()
